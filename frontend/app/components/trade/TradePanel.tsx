@@ -1,9 +1,9 @@
 import { BuyOrSellTradeOption, priceAtom, TradeOption } from "@/app/stores/tradingPanel"
 import { useAtom } from "jotai"
-import { ChangeEvent } from "react"
+import { ChangeEvent, memo } from "react"
 
 
-export const TradingPanel = () => {
+const BaseTradingPanel = () => {
     const [buyOrSell, setBuyOrSell] = useAtom(BuyOrSellTradeOption)
     const [panelData, setPanelData] = useAtom(priceAtom)
 
@@ -20,7 +20,7 @@ export const TradingPanel = () => {
                 }
             ))
         } catch (err) {
-            console.log('err : ', err)
+            console.error('err : ', err)
         }
     }
 
@@ -43,7 +43,7 @@ export const TradingPanel = () => {
                 </div>
                 <div>
                     <p className='my-2 text-sm'>Quantity</p>
-                    <input type="number" inputMode='numeric' pattern='[0-9]*'
+                    <input type="text" inputMode='numeric' pattern='[0-9]*'
                         name='quantity'
                         value={panelData.quantity ?? ""}
                         onChange={onChange}
@@ -51,7 +51,7 @@ export const TradingPanel = () => {
                 </div>
                 <div>
                     <p className='my-2 text-sm'>Total</p>
-                    <input type="number" inputMode='numeric' pattern='[0-9]*'
+                    <input type="text" inputMode='numeric' pattern='[0-9]*'
                         name='total'
                         onChange={onChange}
                         value={panelData.total ?? ""}
@@ -69,6 +69,8 @@ export const TradingPanel = () => {
         </div>
     )
 }
+
+export const TradingPanel = memo(BaseTradingPanel)
 
 const EasySplit = () => {
     const EasySplitVolume = [25, 50, 75, 100]

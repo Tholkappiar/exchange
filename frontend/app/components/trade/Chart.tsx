@@ -1,12 +1,12 @@
 import { getKLines } from "@/app/stores/apiData";
 import { useAtomValue } from "jotai";
 import { CandlestickSeries, createChart, UTCTimestamp } from "lightweight-charts";
-import { useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 
 const startTime = Math.floor((new Date().getTime() - 1000 * 60 * 60 * 24 * 7) / 1000)
 const endTime = Math.floor(new Date().getTime() / 1000)
 
-export const CandleChart = ({ symbol }: { symbol: string }) => {
+const BaseCandleChart = ({ symbol }: { symbol: string }) => {
     const chartRef = useRef<HTMLDivElement | null>(null)
 
 
@@ -26,9 +26,6 @@ export const CandleChart = ({ symbol }: { symbol: string }) => {
             close: parseFloat(kline.close),
         }));
     }, [kLinesData])
-
-    console.log('candleData : ', candleData)
-
 
     useEffect(() => {
         if (!chartRef.current) return
@@ -85,3 +82,5 @@ export const CandleChart = ({ symbol }: { symbol: string }) => {
 
     return <div ref={chartRef} className="h-full w-full" />
 }
+
+export const CandleChart = memo(BaseCandleChart)

@@ -1,8 +1,8 @@
 import { getTicker } from "@/app/stores/apiData"
 import { useAtomValue } from "jotai"
-import { useMemo } from "react"
+import { memo, useMemo } from "react"
 
-export const Ticker: React.FC<{ symbol: string }> = ({ symbol }: { symbol: string }) => {
+const BaseTicker: React.FC<{ symbol: string }> = ({ symbol }: { symbol: string }) => {
 
     const tickerAtom = useMemo(() => getTicker({ symbol: String(symbol), interval: "1d" }), [symbol])
     const value = useAtomValue(tickerAtom)
@@ -20,7 +20,6 @@ export const Ticker: React.FC<{ symbol: string }> = ({ symbol }: { symbol: strin
     }
 
     const { data } = value.data
-    console.log(data)
     const getChangeColor = (change: string) => {
         const numChange = parseFloat(change);
         return numChange >= 0 ? 'text-green-400' : 'text-red-500';
@@ -63,3 +62,5 @@ export const Ticker: React.FC<{ symbol: string }> = ({ symbol }: { symbol: strin
         </div>
     )
 }
+
+export const Ticker = memo(BaseTicker)

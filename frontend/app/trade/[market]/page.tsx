@@ -16,10 +16,10 @@ const Page = () => {
             <div className="flex flex-row gap-4 flex-1 overflow-hidden">
                 {/* Left Panel */}
                 <div className="flex gap-4 w-[80%] h-full">
-                    <div className="w-[80%] h-full">
+                    <div className="w-[70%] h-full">
                         <CandleChart symbol={symbol} />
                     </div>
-                    <div className="w-[20%] h-full bg-[#14151b]">
+                    <div className="w-[30%] h-full bg-[#14151b]">
                         <OrderBook symbol={symbol} />
                     </div>
                 </div>

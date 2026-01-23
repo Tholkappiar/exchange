@@ -50,6 +50,11 @@ type Depth = {
     limit?: DepthLimit;
 };
 
+type Trades = {
+    symbol: string;
+    limit: number;
+};
+
 /* =======================
     Utils
 ======================= */
@@ -90,6 +95,11 @@ export const APIS = {
             `${BASE_BACKEND_URL}/depth?${buildQuery({
                 symbol: depth.symbol,
                 limit: depth.limit,
+            })}`,
+        trades: (trades: Trades) =>
+            `${BASE_BACKEND_URL}/trades?${buildQuery({
+                symbol: trades.symbol,
+                limit: trades.limit,
             })}`,
     },
 };

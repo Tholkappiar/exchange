@@ -9,7 +9,7 @@ import {
 } from "../utils/constant";
 import { loadable } from "jotai/utils";
 
-interface TickersResponse {
+export interface TickersResponse {
     firstPrice: string;
     high: string;
     lastPrice: string;
@@ -31,7 +31,7 @@ export const getTickers = (interval: TickerInterval) =>
         })
     );
 
-interface TickerResponse {
+export interface TickerResponse {
     firstPrice: string;
     high: string;
     lastPrice: string;
@@ -59,7 +59,7 @@ export const getTicker = ({
         })
     );
 
-interface KLinesData {
+export interface KLinesData {
     close: string;
     end: string;
     high: string;
@@ -98,7 +98,7 @@ export const getKLines = ({
         })
     );
 
-interface DepthResponse {
+export interface DepthResponse {
     asks: string[][];
     bids: string[][];
     lastUpdateId: string;
@@ -116,6 +116,33 @@ export const getDepth = ({
         atom(async () => {
             return await axios.get<DepthResponse>(
                 APIS.BACKEND.depth({
+                    symbol,
+                    limit,
+                })
+            );
+        })
+    );
+
+export interface TradesResponse {
+    id: number;
+    price: string;
+    quantity: string;
+    quoteQuantity: string;
+    timestamp: number;
+    isBuyerMaker: boolean;
+}
+
+export const getTrades = ({
+    symbol,
+    limit,
+}: {
+    symbol: string;
+    limit: number;
+}) =>
+    loadable(
+        atom(async () => {
+            return await axios.get<TradesResponse[]>(
+                APIS.BACKEND.trades({
                     symbol,
                     limit,
                 })
