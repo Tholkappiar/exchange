@@ -1,32 +1,46 @@
-import { getTicker } from "@/app/stores/apiData"
-import { useAtomValue } from "jotai"
-import { memo, useMemo } from "react"
+import { useWsSubscription } from "@/app/hooks/useWsSubscription"
+import { marketSymbol } from "@/app/stores/common"
+import { wsTickerAtom, WsTickerResponse } from "@/app/stores/wsData"
+import { useAtomValue, useSetAtom } from "jotai"
+import { memo } from "react"
+// import { getTicker } from "@/app/stores/apiData"
 
-const BaseTicker: React.FC<{ symbol: string }> = ({ symbol }: { symbol: string }) => {
+const BaseTicker = () => {
+    // const tickerAtom = useMemo(() => getTicker({ symbol: String(symbol), interval: "1d" }), [symbol])
 
-    const tickerAtom = useMemo(() => getTicker({ symbol: String(symbol), interval: "1d" }), [symbol])
-    const value = useAtomValue(tickerAtom)
+    const setTicker = useSetAtom(wsTickerAtom);
+    const t = useAtomValue(wsTickerAtom);
+    const symbol = useAtomValue(marketSymbol)
 
-    if (value.state === "loading") {
-        return (
-            <>Loading...</>
-        )
+    useWsSubscription({
+        channel: "ticker",
+        onMessage: (data: WsTickerResponse) => {
+            setTicker(data.data);
+        },
+        onCleanup: () => {
+            setTicker(null)
+        },
+        symbol
+    })
+
+    if (!t) return "no value"
+
+    const data = {
+        priceChange: "0",
+        priceChangePercent: "0",
+        symbol: t.s,
+        lastPrice: t.c,
+        high: t.h,
+        quoteVolume: t.V
     }
 
-    if (value.state === "hasError") {
-        return (
-            <>error !!!</>
-        )
-    }
-
-    const { data } = value.data
     const getChangeColor = (change: string) => {
         const numChange = parseFloat(change);
         return numChange >= 0 ? 'text-green-400' : 'text-red-500';
     };
 
-    const changeNum = parseFloat(data?.priceChange || '0');
-    const percentNum = parseFloat(data?.priceChangePercent || '0') * 100;
+    // const changeNum = parseFloat(data?.priceChange || '0');
+    // const percentNum = parseFloat(data?.priceChangePercent || '0') * 100;
     const changeColor = getChangeColor(data?.priceChangePercent || '0');
 
     return (

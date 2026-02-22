@@ -26,9 +26,9 @@ export const getTickers = (interval: TickerInterval) =>
     loadable(
         atom(async () => {
             return await axios.get<TickersResponse[]>(
-                APIS.BACKEND.tickers({ interval: interval })
+                APIS.BACKEND.tickers({ interval: interval }),
             );
-        })
+        }),
     );
 
 export interface TickerResponse {
@@ -54,9 +54,9 @@ export const getTicker = ({
     loadable(
         atom(async () => {
             return await axios.get<TickerResponse>(
-                APIS.BACKEND.ticker({ symbol, interval })
+                APIS.BACKEND.ticker({ symbol, interval }),
             );
-        })
+        }),
     );
 
 export interface KLinesData {
@@ -78,7 +78,7 @@ export const getKLines = ({
     endTime,
     priceType,
 }: {
-    symbol: string;
+    symbol: string | null;
     interval: KlineInterval;
     startTime: number;
     endTime?: number;
@@ -86,6 +86,7 @@ export const getKLines = ({
 }) =>
     loadable(
         atom(async () => {
+            if (!symbol) return;
             return await axios.get<KLinesData[]>(
                 APIS.BACKEND.kLines({
                     symbol,
@@ -93,9 +94,9 @@ export const getKLines = ({
                     startTime,
                     endTime,
                     priceType,
-                })
+                }),
             );
-        })
+        }),
     );
 
 export interface DepthResponse {
@@ -118,9 +119,9 @@ export const getDepth = ({
                 APIS.BACKEND.depth({
                     symbol,
                     limit,
-                })
+                }),
             );
-        })
+        }),
     );
 
 export interface TradesResponse {
@@ -145,7 +146,7 @@ export const getTrades = ({
                 APIS.BACKEND.trades({
                     symbol,
                     limit,
-                })
+                }),
             );
-        })
+        }),
     );

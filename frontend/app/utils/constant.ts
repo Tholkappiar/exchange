@@ -60,7 +60,7 @@ type Trades = {
 ======================= */
 
 const buildQuery = (
-    params: Record<string, string | number | undefined>
+    params: Record<string, string | number | undefined>,
 ): string =>
     Object.entries(params)
         .filter(([, value]) => value !== undefined)
@@ -103,3 +103,8 @@ export const APIS = {
             })}`,
     },
 };
+
+export const WEBSOCKET_URL = "wss://ws.backpack.exchange";
+
+export const MARKET_SYMBOL_URL = (symbol: string) =>
+    `https://backpack.exchange/_next/image?url=/coins/${symbol}.png&w=32&q=95`;

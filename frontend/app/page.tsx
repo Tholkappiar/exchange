@@ -89,7 +89,7 @@ export default function Home() {
                 </tr>
               </thead>
               <tbody className="text-lg">
-                {value.data.data.map((coin, index) => (
+                {value.data.data.map((coin) => (
                   <tr
                     key={coin.symbol}
                     onClick={() => router.push(`/trade/${coin.symbol}`)}

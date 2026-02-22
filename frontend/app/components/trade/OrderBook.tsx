@@ -1,5 +1,7 @@
-import { getDepth, getTrades } from "@/app/stores/apiData"
+import { useWsSubscription } from "@/app/hooks/useWsSubscription";
+import { marketSymbol } from "@/app/stores/common";
 import { CurrentOrderBookTab, CurrentOrderBookType } from "@/app/stores/orderBook";
+import { mapWsTrade, wsDepthAtom, wsDepthResponse, wsTradeResponse, wsTradesAtom } from "@/app/stores/wsData";
 import { useAtom, useAtomValue } from "jotai"
 import { memo, useEffect, useMemo, useRef } from "react"
 
@@ -12,9 +14,7 @@ const normalizeDepth = (levels: string[][], reverseAfterAccumulate: boolean): De
         total += d.size;
         d.total = total;
     });
-    if (reverseAfterAccumulate) {
-        data.reverse();
-    }
+    if (reverseAfterAccumulate) data.reverse();
     return data;
 };
 
@@ -25,43 +25,111 @@ const formatCompactNumber = (num: number): string => {
     return num.toFixed(2);
 };
 
-/* -------------------- ORDER ROW -------------------- */
-const BaseOrderBook: React.FC<{ symbol: string }> = ({ symbol }: { symbol: string }) => {
-    const [currentOrderBookTab, setCurrentOrderBookTab] = useAtom(CurrentOrderBookTab)
+/* -------------------- HOOKS -------------------- */
+
+export function useTradeStream(symbol: string | null) {
+    const [trades, setTrades] = useAtom(wsTradesAtom);
+
+    useWsSubscription<{ data: wsTradeResponse }>({
+        channel: "trade",
+        symbol,
+        onMessage: ({ data }) => {
+            setTrades(prev => [...prev.slice(-100), data]);
+        },
+        onCleanup: () => {
+            setTrades([]);
+        }
+    });
+
+    return trades;
+}
+
+export function useDepthStream(symbol: string | null) {
+    const [depths, setDepths] = useAtom(wsDepthAtom);
+
+    useWsSubscription<{ data: wsDepthResponse }>({
+        channel: "depth",
+        symbol,
+        onMessage: ({ data }) => {
+            setDepths(prev => [...prev.slice(-100), data]);
+        },
+        onCleanup: () => {
+            setDepths([]);
+        }
+    });
+
+    return depths;
+}
+
+/* -------------------- ORDER BOOK -------------------- */
+
+const BaseOrderBook = () => {
+    const [currentOrderBookTab, setCurrentOrderBookTab] = useAtom(CurrentOrderBookTab);
+
+    // Hoisted here so streams stay alive across tab switches
+    const symbol = useAtomValue(marketSymbol)
+    const trades = useTradeStream(symbol);
+    const depths = useDepthStream(symbol);
+
+    if (!symbol) return
 
     return (
         <div className="flex h-full flex-col text-sm overflow-hidden select-none px-2">
             <div className="flex gap-2 text-sm text-gray-400 font-semibold py-4">
-                <button className={`${currentOrderBookTab === CurrentOrderBookType.BOOK && "text-gray-200 bg-[#202127]"} py-2 px-4 rounded-lg`} onClick={() => setCurrentOrderBookTab(CurrentOrderBookType.BOOK)}>Book</button>
-                <button className={`${currentOrderBookTab === CurrentOrderBookType.TRADES && "text-gray-200 bg-[#202127]"} py-2 px-4 rounded-lg`} onClick={() => setCurrentOrderBookTab(CurrentOrderBookType.TRADES)}>Trades</button>
+                <button
+                    className={`${currentOrderBookTab === CurrentOrderBookType.BOOK && "text-gray-200 bg-[#202127]"} py-2 px-4 rounded-lg`}
+                    onClick={() => setCurrentOrderBookTab(CurrentOrderBookType.BOOK)}
+                >
+                    Book
+                </button>
+                <button
+                    className={`${currentOrderBookTab === CurrentOrderBookType.TRADES && "text-gray-200 bg-[#202127]"} py-2 px-4 rounded-lg`}
+                    onClick={() => setCurrentOrderBookTab(CurrentOrderBookType.TRADES)}
+                >
+                    Trades
+                </button>
             </div>
-            <RenderOrderBookTab currentOrderBookTab={currentOrderBookTab} symbol={symbol} />
+            <RenderOrderBookTab
+                currentOrderBookTab={currentOrderBookTab}
+                symbol={symbol}
+                trades={trades}
+                depths={depths}
+            />
         </div>
     );
 };
 
-export const OrderBook = memo(BaseOrderBook)
+export const OrderBook = memo(BaseOrderBook);
 
-const RenderOrderBookTab: React.FC<{ currentOrderBookTab: CurrentOrderBookType, symbol: string }> = ({ currentOrderBookTab, symbol }) => {
+/* -------------------- TAB ROUTER -------------------- */
+
+type TradeStream = ReturnType<typeof useTradeStream>;
+type DepthStream = ReturnType<typeof useDepthStream>;
+
+const RenderOrderBookTab: React.FC<{
+    currentOrderBookTab: CurrentOrderBookType;
+    symbol: string;
+    trades: TradeStream;
+    depths: DepthStream;
+}> = ({ currentOrderBookTab, symbol, trades, depths }) => {
     if (currentOrderBookTab === CurrentOrderBookType.BOOK) {
-        return (
-            <RenderBookTab symbol={symbol} />
-        )
+        return <RenderBookTab symbol={symbol} depths={depths} />;
     }
-    return (
-        <RenderTradesTab symbol={symbol} />
-    )
-}
+    return <RenderTradesTab trades={trades} />;
+};
 
-const RenderBookTab: React.FC<{ symbol: string }> = ({ symbol }) => {
+/* -------------------- BOOK TAB -------------------- */
 
-    const marketDepth = useMemo(() => getDepth({ symbol, limit: 20 }), [symbol]);
-    const depthData = useAtomValue(marketDepth);
+const RenderBookTab: React.FC<{ symbol: string; depths: DepthStream }> = ({ symbol, depths }) => {
+    const allAsks: string[][] = [];
+    const allBids: string[][] = [];
 
-    if (depthData.state === "loading") return <div className="flex h-full items-center justify-center">Loading...</div>;
-    if (depthData.state === "hasError") return <div className="flex h-full items-center justify-center">Error !!</div>;
+    depths?.forEach(d => {
+        if (d.a.length > 0) allAsks.push(...d.a);
+        if (d.b.length > 0) allBids.push(...d.b);
+    });
 
-    const { data } = depthData.data;
+    if (!depths?.length) return <div className="flex h-full items-center justify-center">Loading...</div>;
 
     return (
         <>
@@ -72,7 +140,7 @@ const RenderBookTab: React.FC<{ symbol: string }> = ({ symbol }) => {
             </div>
             <div className="h-1/2 overflow-hidden">
                 <div className="h-full overflow-y-auto no-scrollbar">
-                    <Asks asksData={data.asks} symbol={symbol} />
+                    <Asks asksData={allAsks} symbol={symbol} />
                 </div>
             </div>
 
@@ -82,30 +150,24 @@ const RenderBookTab: React.FC<{ symbol: string }> = ({ symbol }) => {
 
             <div className="h-1/2 overflow-hidden">
                 <div className="h-full overflow-y-auto no-scrollbar">
-                    <Bids bidsData={data.bids} symbol={symbol} />
+                    <Bids bidsData={allBids} symbol={symbol} />
                 </div>
             </div>
         </>
-    )
-}
+    );
+};
 
-const RenderTradesTab: React.FC<{ symbol: string }> = ({ symbol }) => {
+/* -------------------- TRADES TAB -------------------- */
 
+const RenderTradesTab: React.FC<{ trades: TradeStream }> = ({ trades }) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const trades = useMemo(() => getTrades({ symbol, limit: 100 }), [symbol])
-    const tradesData = useAtomValue(trades)
 
     useEffect(() => {
-        const el = containerRef.current
-        if (el) {
-            el.scrollTop = el.scrollHeight
-        }
-    }, [tradesData])
+        const el = containerRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+    }, [trades]);
 
-    if (tradesData.state === "loading") return <div className="flex h-full items-center justify-center">Loading...</div>;
-    if (tradesData.state === "hasError") return <div className="flex h-full items-center justify-center">Error !!</div>;
-
-    const tradesResponse = tradesData.data.data
+    if (!trades?.length) return <div className="flex h-full items-center justify-center">Loading...</div>;
 
     return (
         <>
@@ -115,52 +177,51 @@ const RenderTradesTab: React.FC<{ symbol: string }> = ({ symbol }) => {
                 <p className="flex-1 text-right">Time</p>
             </div>
             <div ref={containerRef} className="h-full overflow-y-auto no-scrollbar">
-                {tradesResponse.map((trade) => {
-                    const price = Number(trade.price);
-                    const qty = Number(trade.quantity);
-                    const timeString = new Date(trade.timestamp).toLocaleTimeString('en-GB', { hour12: false });
-
-                    const isBuy = !trade.isBuyerMaker;
+                {trades.map((trade) => {
+                    const t = mapWsTrade(trade);
+                    const price = Number(t.price);
+                    const qty = Number(t.quantity);
+                    const timeString = new Date(t.eventTime).toLocaleTimeString('en-GB', { hour12: false });
+                    const isBuy = !t.isBuyerMaker;
                     const colorClass = isBuy
                         ? "text-green-400 hover:bg-green-950/30"
                         : "text-red-400 hover:bg-red-950/30";
 
                     return (
                         <div
-                            key={trade.id}
+                            key={t.tradeId}
                             className={`flex w-full py-1 ${colorClass} transition-colors`}
                         >
                             <div className="flex-1 font-medium">{price.toFixed(2)}</div>
                             <div className="flex-1 text-right">{qty.toFixed(3)}</div>
-                            <div className="flex-1 text-right text-gray-500 text-xs">
-                                {timeString}
-                            </div>
+                            <div className="flex-1 text-right text-gray-500 text-xs">{timeString}</div>
                         </div>
                     );
                 })}
             </div>
         </>
-    )
-}
+    );
+};
 
-const Bids = ({ bidsData = [], symbol }: {
-    bidsData: string[][];
-    symbol: string;
-}) => {
+/* -------------------- BIDS -------------------- */
+
+const Bids = ({ bidsData = [], symbol }: { bidsData: string[][]; symbol: string }) => {
     const rows = useMemo(() => normalizeDepth(bidsData, false), [bidsData]);
     const maxTotal = useMemo(() => rows.reduce((max, r) => Math.max(max, r.total), 0), [rows]);
 
+    if (bidsData.length === 0) return null;
+
     return (
         <div className="divide-y divide-gray-800/50">
-            {rows.map((bid) => (
+            {rows.map((bid, index) => (
                 <div
-                    key={`${symbol}_${bid.price}`}
+                    key={`${symbol}_${bid.price}_${index}`}
                     className="flex w-full py-1 hover:bg-green-950/30 text-gray-300 relative"
                 >
                     <div
                         className="absolute right-0 h-full z-0 bg-green-400/20"
-                        style={{ width: `${(bid.total / maxTotal * 100)}%` }}
-                    ></div>
+                        style={{ width: `${(bid.total / maxTotal) * 100}%` }}
+                    />
                     <div className="flex w-full z-10">
                         <div className="flex-1 text-green-500/90">{bid.price.toFixed(2)}</div>
                         <div className="flex-1 text-right">{formatCompactNumber(bid.size)}</div>
@@ -172,40 +233,39 @@ const Bids = ({ bidsData = [], symbol }: {
     );
 };
 
-const Asks = ({ asksData = [], symbol }: {
-    asksData: string[][];
-    symbol: string;
-}) => {
-    const containerRef = useRef<HTMLDivElement>(null)
+/* -------------------- ASKS -------------------- */
+
+const Asks = ({ asksData = [], symbol }: { asksData: string[][]; symbol: string }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (!containerRef.current) return
-        containerRef.current.scrollTop = containerRef.current.scrollHeight
-    }, [asksData])
+        if (!containerRef.current) return;
+        containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }, [asksData]);
 
     const rows = useMemo(() => normalizeDepth(asksData, true), [asksData]);
     const maxTotal = useMemo(() => rows.reduce((max, r) => Math.max(max, r.total), 0), [rows]);
 
+    if (asksData.length === 0) return null;
+
     return (
         <div ref={containerRef} className="divide-y divide-gray-800/50 overflow-y-auto no-scrollbar h-full">
-            {rows.map((ask) => {
-                return (
+            {rows.map((ask, index) => (
+                <div
+                    key={`${symbol}_${ask.price}_${index}`}
+                    className="flex w-full py-1 hover:bg-red-950/30 text-gray-300 relative"
+                >
                     <div
-                        key={`${symbol}_${ask.price}`}
-                        className="flex w-full py-1 hover:bg-red-950/30 text-gray-300 relative"
-                    >
-                        <div
-                            className="absolute right-0 h-full z-0 bg-red-500/20"
-                            style={{ width: `${(ask.total / maxTotal * 100)}%` }}
-                        ></div>
-                        <div className="flex w-full z-10">
-                            <div className="flex-1 text-red-500/90">{ask.price.toFixed(2)}</div>
-                            <div className="flex-1 text-right">{formatCompactNumber(ask.size)}</div>
-                            <div className="flex-1 text-right">{formatCompactNumber(ask.total)}</div>
-                        </div>
+                        className="absolute right-0 h-full z-0 bg-red-500/20"
+                        style={{ width: `${(ask.total / maxTotal) * 100}%` }}
+                    />
+                    <div className="flex w-full z-10">
+                        <div className="flex-1 text-red-500/90">{ask.price.toFixed(2)}</div>
+                        <div className="flex-1 text-right">{formatCompactNumber(ask.size)}</div>
+                        <div className="flex-1 text-right">{formatCompactNumber(ask.total)}</div>
                     </div>
-                )
-            })}
+                </div>
+            ))}
         </div>
     );
 };
