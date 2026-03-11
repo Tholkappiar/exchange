@@ -1,0 +1,1 @@
+export const REDIS_QUEUE_NAME = "ORDERS_QUEUE";
