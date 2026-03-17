@@ -1,10 +1,20 @@
 import { OrderBook } from "./OrderBook";
 
 export class MarketRegistry {
+    private static instance: MarketRegistry | null = null;
     private books = new Map<string, OrderBook>();
 
+    static getInstance() {
+        if (!MarketRegistry.instance) {
+            MarketRegistry.instance = new MarketRegistry();
+        }
+        return MarketRegistry.instance;
+    }
+
+    private constructor() {}
+
     createMarket(baseAsset: string, quoteAsset: string) {
-        const ticker = `${baseAsset}_${quoteAsset})`;
+        const ticker = `${baseAsset}_${quoteAsset}`;
         if (this.books.has(ticker)) {
             throw new Error("market exists, duplicate market");
         }

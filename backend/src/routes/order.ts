@@ -1,10 +1,13 @@
 import { Router } from "express";
 import { RedisManager } from "../redis/redisManager";
+import { MarketRegistry } from "../trade/MarketRegistry";
 
 export const orderRouter = Router();
 
 orderRouter.get("/order", (req, res) => {
-    res.send({ message: "order get" });
+    const { symbol } = req.body;
+    const response = MarketRegistry.getInstance().getBook(symbol);
+    res.send({ data: response });
 });
 
 orderRouter.post("/order", async (req, res) => {

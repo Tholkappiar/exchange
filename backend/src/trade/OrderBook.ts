@@ -34,8 +34,33 @@ export class OrderBook {
             this.insertOrder(order);
         }
 
+        const totalExecutedQuantity = fills.reduce(
+            (sum, f) => sum + f.executedQuantity,
+            0,
+        );
+
+        let status: OrderStatus;
+        let reason: OrderReason | undefined;
+
+        if (fills.length === 0) {
+            if (order.orderType === "Market") {
+                status = ORDER_STATUS.REJECTED;
+                reason = ORDER_REASON.NO_LIQUIDITY;
+            } else {
+                status = ORDER_STATUS.OPEN;
+                reason = ORDER_REASON.PRICE_NOT_MATCHED;
+            }
+        } else if (order.remaining === 0) {
+            status = ORDER_STATUS.FILLED;
+        } else {
+            status = ORDER_STATUS.PARTIALLY_FILLED;
+            reason = ORDER_REASON.INSUFFICIENT_LIQUIDITY;
+        }
+
         return {
-            executedQuantity: order.quantity - order.remaining,
+            totalExecutedQuantity,
+            status,
+            reason,
             fills,
         };
     }
@@ -256,3 +281,22 @@ export type Fills = {
     oppositeUserId: string;
     symbol: string;
 };
+
+export const ORDER_STATUS = {
+    OPEN: "OPEN",
+    PARTIALLY_FILLED: "PARTIALLY_FILLED",
+    FILLED: "FILLED",
+    REJECTED: "REJECTED",
+    CANCELLED: "CANCELLED",
+} as const;
+
+export type OrderStatus = (typeof ORDER_STATUS)[keyof typeof ORDER_STATUS];
+
+export const ORDER_REASON = {
+    NO_LIQUIDITY: "NO_LIQUIDITY",
+    PRICE_NOT_MATCHED: "PRICE_NOT_MATCHED",
+    INSUFFICIENT_LIQUIDITY: "INSUFFICIENT_LIQUIDITY",
+    INVALID_ORDER: "INVALID_ORDER",
+} as const;
+
+export type OrderReason = (typeof ORDER_REASON)[keyof typeof ORDER_REASON];

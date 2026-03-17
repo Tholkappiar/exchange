@@ -1,12 +1,17 @@
 import { createClient, RedisClientType } from "redis";
 import { REDIS_QUEUE_NAME } from "../utils/constants";
+import { MarketRegistry } from "./MarketRegistry";
 
 export class RedisWorkerManager {
     private static instance: RedisWorkerManager | null = null;
     private subscribeClient: RedisClientType | null = null;
     private publishClient: RedisClientType | null = null;
 
+    marketRegistry: MarketRegistry | null = null;
+
     constructor() {
+        this.marketRegistry = MarketRegistry.getInstance();
+        this.marketRegistry.createMarket("btc", "usd");
         console.log("Starting Redis Worker Manager ...");
     }
 
@@ -32,8 +37,10 @@ export class RedisWorkerManager {
             try {
                 if (!data) continue;
                 const parsed = JSON.parse(data.element);
-                console.log("parsed : ", parsed);
-                this.publishClient?.publish(parsed.id, JSON.stringify(parsed));
+                const res = this.marketRegistry
+                    ?.getBook("btc_usd")
+                    .addOrder(parsed.data);
+                this.publishClient?.publish(parsed.id, JSON.stringify(res));
             } catch (err) {
                 console.error("err : ", err);
             }
