@@ -51,9 +51,7 @@ export class RedisWorkerManager {
                 if (!data) continue;
 
                 const request: EngineRequest = JSON.parse(data.element);
-                console.log("request : ", request);
                 const response = this.engine.process(request);
-                console.log("last : ", response);
                 await this.publishClient?.publish(
                     request.id,
                     JSON.stringify(response),
