@@ -28,16 +28,17 @@ export class RedisManager {
         await this.subscribeClient.connect();
     }
 
-    sendAndAait(data: any) {
+    sendAndAwait(data: any) {
         return new Promise((res) => {
             const id = this.getRandomClientID();
-            this.subscribeClient?.subscribe(id, (data) => {
+            this.subscribeClient?.subscribe(id, (message) => {
                 this.subscribeClient?.unsubscribe(id);
-                res(data);
+                res(JSON.parse(message));
             });
+
             this.publishClient?.lPush(
                 REDIS_QUEUE_NAME,
-                JSON.stringify({ data, id }),
+                JSON.stringify({ ...data, id }),
             );
         });
     }

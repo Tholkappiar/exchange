@@ -1,7 +1,7 @@
 // export class Engine {
 //     private instance: Engine | null = null;
 
-import { RedisWorkerManager } from "./redisWorkerManager";
+// import { RedisWorkerManager } from "./redisWorkerManager";
 
 //     constructor() {
 //         console.log("Staring ENGINE ...");
@@ -15,9 +15,9 @@ import { RedisWorkerManager } from "./redisWorkerManager";
 //     }
 // }
 
-async function main() {
-    const manager = await RedisWorkerManager.getInstance();
-    manager?.startWorker();
-}
+// async function main() {
+//     const manager = await RedisWorkerManager.getInstance();
+//     manager?.startWorker();
+// }
 
-main();
+// main();

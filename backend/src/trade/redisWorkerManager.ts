@@ -1,48 +1,68 @@
 import { createClient, RedisClientType } from "redis";
 import { REDIS_QUEUE_NAME } from "../utils/constants";
 import { MarketRegistry } from "./MarketRegistry";
+import { Engine, EngineRequest } from "./Engine";
 
 export class RedisWorkerManager {
     private static instance: RedisWorkerManager | null = null;
     private subscribeClient: RedisClientType | null = null;
     private publishClient: RedisClientType | null = null;
 
-    marketRegistry: MarketRegistry | null = null;
+    private engine: Engine;
+    private marketRegistry: MarketRegistry;
 
-    constructor() {
+    private constructor() {
+        this.engine = Engine.getInstance();
         this.marketRegistry = MarketRegistry.getInstance();
-        this.marketRegistry.createMarket("btc", "usd");
-        console.log("Starting Redis Worker Manager ...");
+
+        this.marketRegistry.createMarket("BTC", "USDT");
+        this.marketRegistry.createMarket("ETH", "USDT");
+
+        console.log("[RedisWorkerManager] Initialized");
     }
 
-    private async subscribeClients() {
+    private async connectClients() {
         this.subscribeClient = createClient();
         this.publishClient = createClient();
         await this.subscribeClient.connect();
         await this.publishClient.connect();
+        console.log("[RedisWorkerManager] Redis clients connected");
     }
 
-    static async getInstance() {
+    static async getInstance(): Promise<RedisWorkerManager> {
         if (!RedisWorkerManager.instance) {
-            const manager = new RedisWorkerManager();
-            RedisWorkerManager.instance = manager;
+            RedisWorkerManager.instance = new RedisWorkerManager();
         }
-        await RedisWorkerManager.instance.subscribeClients();
-        return this.instance;
+        await RedisWorkerManager.instance.connectClients();
+        return RedisWorkerManager.instance;
     }
 
     async startWorker() {
+        console.log(
+            "[RedisWorkerManager] Worker started, waiting for messages...",
+        );
+
         while (true) {
-            const data = await this.subscribeClient?.brPop(REDIS_QUEUE_NAME, 0);
             try {
+                const data = await this.subscribeClient?.brPop(
+                    REDIS_QUEUE_NAME,
+                    0,
+                );
                 if (!data) continue;
-                const parsed = JSON.parse(data.element);
-                const res = this.marketRegistry
-                    ?.getBook("btc_usd")
-                    .addOrder(parsed.data);
-                this.publishClient?.publish(parsed.id, JSON.stringify(res));
+
+                const request: EngineRequest = JSON.parse(data.element);
+                console.log("request : ", request);
+                const response = this.engine.process(request);
+                console.log("last : ", response);
+                await this.publishClient?.publish(
+                    request.id,
+                    JSON.stringify(response),
+                );
             } catch (err) {
-                console.error("err : ", err);
+                console.error(
+                    "[RedisWorkerManager] Error processing message:",
+                    err,
+                );
             }
         }
     }

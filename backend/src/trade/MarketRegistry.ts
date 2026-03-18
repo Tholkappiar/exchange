@@ -2,30 +2,43 @@ import { OrderBook } from "./OrderBook";
 
 export class MarketRegistry {
     private static instance: MarketRegistry | null = null;
-    private books = new Map<string, OrderBook>();
 
-    static getInstance() {
+    private books: Map<string, OrderBook> = new Map();
+
+    private constructor() {}
+
+    static getInstance(): MarketRegistry {
         if (!MarketRegistry.instance) {
             MarketRegistry.instance = new MarketRegistry();
         }
         return MarketRegistry.instance;
     }
 
-    private constructor() {}
+    createMarket(baseAsset: string, quoteAsset: string): OrderBook {
+        const ticker = `${baseAsset.toUpperCase()}_${quoteAsset.toUpperCase()}`;
 
-    createMarket(baseAsset: string, quoteAsset: string) {
-        const ticker = `${baseAsset}_${quoteAsset}`;
         if (this.books.has(ticker)) {
-            throw new Error("market exists, duplicate market");
+            return this.books.get(ticker)!;
         }
-        this.books.set(ticker, new OrderBook(baseAsset, quoteAsset));
+
+        const book = new OrderBook(
+            baseAsset.toUpperCase(),
+            quoteAsset.toUpperCase(),
+        );
+        this.books.set(ticker, book);
+        console.log(`[MarketRegistry] Created market: ${ticker}`);
+        return book;
     }
 
-    getBook(symbol: string) {
-        const book = this.books.get(symbol);
-        if (!book) {
-            throw new Error("Market not found");
-        }
-        return book;
+    getBook(ticker: string): OrderBook | undefined {
+        return this.books.get(ticker.toUpperCase());
+    }
+
+    hasMarket(ticker: string): boolean {
+        return this.books.has(ticker.toUpperCase());
+    }
+
+    getAllTickers(): string[] {
+        return Array.from(this.books.keys());
     }
 }
