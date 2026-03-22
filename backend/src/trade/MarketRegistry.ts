@@ -1,3 +1,4 @@
+import { EngineResponse } from "./Engine";
 import { OrderBook } from "./OrderBook";
 
 export class MarketRegistry {
@@ -40,5 +41,14 @@ export class MarketRegistry {
 
     getAllTickers(): string[] {
         return Array.from(this.books.keys());
+    }
+
+    resetMarket(baseAsset: string, quoteAsset: string): EngineResponse {
+        const book = this.books.get(`${baseAsset}_${quoteAsset}`);
+        if (!book) {
+            return { success: false, error: "Book not found." };
+        }
+        book?.resetBook();
+        return { success: true, data: "Book Data cleared" };
     }
 }

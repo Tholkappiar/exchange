@@ -27,6 +27,11 @@ export class Engine {
                 return this.getOpenOrders(request.data);
             case "GET_DEPTH":
                 return this.getDepth(request.data);
+            case "RESET_BOOK":
+                return this.marketRegistry.resetMarket(
+                    request.data.baseAsset,
+                    request.data.quoteAsset,
+                );
         }
     }
 
@@ -108,6 +113,7 @@ export class Engine {
     }
 
     private getOpenOrders(payload: GetOpenOrdersPayload): EngineResponse {
+        console.log("pay : ", payload);
         const book = this.marketRegistry.getBook(payload.ticker);
         if (!book) {
             return {
@@ -167,11 +173,17 @@ export type GetDepthPayload = {
     limit?: number;
 };
 
+export type ResetBookPayload = {
+    baseAsset: string;
+    quoteAsset: string;
+};
+
 export type EngineRequest =
     | { id: string; type: "CREATE_ORDER"; data: CreateOrderPayload }
     | { id: string; type: "CANCEL_ORDER"; data: CancelOrderPayload }
     | { id: string; type: "GET_OPEN_ORDERS"; data: GetOpenOrdersPayload }
-    | { id: string; type: "GET_DEPTH"; data: GetDepthPayload };
+    | { id: string; type: "GET_DEPTH"; data: GetDepthPayload }
+    | { id: string; type: "RESET_BOOK"; data: ResetBookPayload };
 
 export type EngineResponse<T = unknown> =
     | { success: true; data: T }

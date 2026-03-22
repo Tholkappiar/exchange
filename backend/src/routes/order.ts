@@ -12,7 +12,6 @@ orderRouter.get("/order", (req, res) => {
 
 orderRouter.post("/order", async (req, res) => {
     const payload = req.body;
-    // res.send({ messgae: "order post", payload });
     const instance = await RedisManager.getInstance();
     const response = await instance.sendAndAwait(payload);
     console.log("response : ", response);

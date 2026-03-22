@@ -303,6 +303,16 @@ export class OrderBook {
         };
     }
 
+    resetBook() {
+        this.asks = [];
+        this.bids = [];
+
+        this.askDepth.clear();
+        this.bidDepth.clear();
+
+        this.currentPrice = 0;
+    }
+
     getOpenOrders(userID: string) {
         const openBids = this.bids.filter((bid) => bid.userID === userID);
         const openAsks = this.asks.filter((ask) => ask.userID === userID);
@@ -333,12 +343,15 @@ export class OrderBook {
     getBestBid() {
         return this.bids[0];
     }
+
     getBidsLength() {
         return this.bids.length;
     }
+
     getBestAsk() {
         return this.asks[0];
     }
+
     getAsksLength() {
         return this.asks.length;
     }
