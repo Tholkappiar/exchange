@@ -1,6 +1,8 @@
 import { BalanceManager } from "./BalanceManager";
 import { MarketRegistry } from "./MarketRegistry";
 import { Order, ORDER_STATUS } from "./OrderBook";
+import { EngineRequestSchema } from "../zod/EngineSchema";
+import { ORDER_TYPES } from "../utils/constants";
 
 export class Engine {
     private static instance: Engine | null = null;
@@ -17,20 +19,32 @@ export class Engine {
         return Engine.instance;
     }
 
-    process(request: EngineRequest): EngineResponse {
-        switch (request.type) {
-            case "CREATE_ORDER":
-                return this.createOrder(request.data);
-            case "CANCEL_ORDER":
-                return this.cancelOrder(request.data);
-            case "GET_OPEN_ORDERS":
-                return this.getOpenOrders(request.data);
-            case "GET_DEPTH":
-                return this.getDepth(request.data);
-            case "RESET_BOOK":
+    process(request: unknown): EngineResponse {
+        const result = EngineRequestSchema.safeParse(request);
+        if (!result.success) {
+            return {
+                success: false,
+                error: result.error.issues
+                    .map((i) => `${i.path.join(".")}: ${i.message}`)
+                    .join(", "),
+            };
+        }
+
+        const validated = result.data;
+
+        switch (validated.type) {
+            case ORDER_TYPES.CREATE_ORDER:
+                return this.createOrder(validated.data);
+            case ORDER_TYPES.CANCEL_ORDER:
+                return this.cancelOrder(validated.data);
+            case ORDER_TYPES.GET_OPEN_ORDERS:
+                return this.getOpenOrders(validated.data);
+            case ORDER_TYPES.GET_DEPTH:
+                return this.getDepth(validated.data);
+            case ORDER_TYPES.RESET_BOOK:
                 return this.marketRegistry.resetMarket(
-                    request.data.baseAsset,
-                    request.data.quoteAsset,
+                    validated.data.baseAsset,
+                    validated.data.quoteAsset,
                 );
         }
     }
@@ -46,7 +60,6 @@ export class Engine {
 
         const locked = this.balanceManager.lockBalance(order);
         if (!locked) {
-            // return { success: false, error: "Insufficient balance" };
             this.balanceManager.addUserBalance(order.userID, order.baseAsset);
         }
 
@@ -143,16 +156,6 @@ export class Engine {
         };
     }
 }
-
-export const ENGINE_REQUEST_TYPE = {
-    CREATE_ORDER: "CREATE_ORDER",
-    CANCEL_ORDER: "CANCEL_ORDER",
-    GET_OPEN_ORDERS: "GET_OPEN_ORDERS",
-    GET_DEPTH: "GET_DEPTH",
-} as const;
-
-export type EngineRequestType =
-    (typeof ENGINE_REQUEST_TYPE)[keyof typeof ENGINE_REQUEST_TYPE];
 
 export type CreateOrderPayload = Order;
 

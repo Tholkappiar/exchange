@@ -1,5 +1,6 @@
 import { createClient, RedisClientType } from "redis";
 import { REDIS_QUEUE_NAME } from "../utils/constants";
+import { EngineRequestSchema } from "../zod/EngineSchema";
 
 export class RedisManager {
     private static instance: RedisManager;
@@ -28,9 +29,19 @@ export class RedisManager {
         await this.subscribeClient.connect();
     }
 
-    sendAndAwait(data: any) {
+    sendAndAwait(data: unknown) {
+        const id = this.getRandomClientID();
+        const payload = { ...(data as object), id };
+
+        const result = EngineRequestSchema.safeParse(payload);
+        if (!result.success) {
+            return Promise.resolve({
+                success: false,
+                error: result.error,
+            });
+        }
+
         return new Promise((res) => {
-            const id = this.getRandomClientID();
             this.subscribeClient?.subscribe(id, (message) => {
                 this.subscribeClient?.unsubscribe(id);
                 res(JSON.parse(message));
@@ -38,7 +49,7 @@ export class RedisManager {
 
             this.publishClient?.lPush(
                 REDIS_QUEUE_NAME,
-                JSON.stringify({ ...data, id }),
+                JSON.stringify(result.data),
             );
         });
     }
