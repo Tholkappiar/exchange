@@ -321,7 +321,7 @@ export class OrderBook {
 
     updateDepth(map: Map<number, number>, price: number, quantity: number) {
         map.set(price, (map.get(price) || 0) + quantity);
-        if (map.get(price)! <= 0) {
+        if (map.get(price)! == 0) {
             map.delete(price);
         }
     }

@@ -1,32 +1,64 @@
 import { createClient, RedisClientType } from "redis";
 import { REDIS_QUEUE_NAME } from "../utils/constants";
+import { MarketRegistry } from "../trade/MarketRegistry";
+import { Engine, EngineRequest } from "../trade/Engine";
 import { EngineRequestSchema } from "../zod/EngineSchema";
 
 export class RedisManager {
-    private static instance: RedisManager;
-
-    private publishClient: RedisClientType | null = null;
+    private static instance: RedisManager | null = null;
     private subscribeClient: RedisClientType | null = null;
+    private publishClient: RedisClientType | null = null;
+
+    private engine: Engine;
+    private marketRegistry: MarketRegistry;
 
     private constructor() {
-        console.log("Starting REDIS Manager ...");
+        this.engine = Engine.getInstance();
+        this.marketRegistry = MarketRegistry.getInstance();
+
+        this.marketRegistry.createMarket("BTC", "USDT");
+        this.marketRegistry.createMarket("ETH", "USDT");
+
+        console.log("[RedisManager] Initialized");
     }
 
-    public static async getInstance(): Promise<RedisManager> {
+    private async connectClients() {
+        this.subscribeClient = createClient();
+        this.publishClient = createClient();
+        await this.subscribeClient.connect();
+        await this.publishClient.connect();
+        console.log("[RedisManager] Redis clients connected");
+    }
+
+    static async getInstance(): Promise<RedisManager> {
         if (!RedisManager.instance) {
-            const manager = new RedisManager();
-            await manager.createClients();
-            RedisManager.instance = manager;
+            RedisManager.instance = new RedisManager();
         }
+        await RedisManager.instance.connectClients();
         return RedisManager.instance;
     }
 
-    private async createClients() {
-        this.publishClient = createClient();
-        this.subscribeClient = createClient();
+    async startWorker() {
+        console.log("[RedisManager] Worker started, waiting for messages...");
 
-        await this.publishClient.connect();
-        await this.subscribeClient.connect();
+        while (true) {
+            try {
+                const data = await this.subscribeClient?.brPop(
+                    REDIS_QUEUE_NAME,
+                    0,
+                );
+                if (!data) continue;
+
+                const request: EngineRequest = JSON.parse(data.element);
+                const response = this.engine.process(request);
+                await this.publishClient?.publish(
+                    request.id,
+                    JSON.stringify(response),
+                );
+            } catch (err) {
+                console.error("[RedisManager] Error processing message:", err);
+            }
+        }
     }
 
     sendAndAwait(data: unknown) {

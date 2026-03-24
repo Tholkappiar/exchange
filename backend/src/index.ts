@@ -2,12 +2,12 @@ import * as dotenv from "dotenv";
 dotenv.config();
 import express from "express";
 import { orderRouter } from "./routes/order";
-import { RedisWorkerManager } from "./trade/redisWorkerManager";
+import { RedisManager } from "./redis/RedisManager";
 
 const app = express();
 app.use(express.json());
 
-RedisWorkerManager.getInstance().then((r) => r?.startWorker());
+RedisManager.getInstance().then((r) => r?.startWorker());
 app.get("/", (req, res) => {
     res.send({ message: "healthy !" });
 });

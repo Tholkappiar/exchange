@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { RedisManager } from "../redis/redisManager";
 import { MarketRegistry } from "../trade/MarketRegistry";
+import { RedisManager } from "../redis/RedisManager";
 
 export const orderRouter = Router();
 
