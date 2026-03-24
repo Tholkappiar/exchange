@@ -3,11 +3,15 @@ dotenv.config();
 import express from "express";
 import { orderRouter } from "./routes/order";
 import { RedisManager } from "./redis/RedisManager";
+import { WebsocketManager } from "./websocket/WebsocketManager";
 
 const app = express();
 app.use(express.json());
 
+// todo: refac these singleton workers - because we are only going to call this once somewhere
 RedisManager.getInstance().then((r) => r?.startWorker());
+WebsocketManager.getInstance().startWorker();
+
 app.get("/", (req, res) => {
     res.send({ message: "healthy !" });
 });

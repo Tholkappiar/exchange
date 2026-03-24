@@ -8,6 +8,7 @@ export class RedisManager {
     private static instance: RedisManager | null = null;
     private subscribeClient: RedisClientType | null = null;
     private publishClient: RedisClientType | null = null;
+    private workerClient: RedisClientType | null = null;
 
     private engine: Engine;
     private marketRegistry: MarketRegistry;
@@ -25,16 +26,18 @@ export class RedisManager {
     private async connectClients() {
         this.subscribeClient = createClient();
         this.publishClient = createClient();
+        this.workerClient = createClient();
         await this.subscribeClient.connect();
         await this.publishClient.connect();
+        await this.workerClient.connect();
         console.log("[RedisManager] Redis clients connected");
     }
 
     static async getInstance(): Promise<RedisManager> {
         if (!RedisManager.instance) {
             RedisManager.instance = new RedisManager();
+            await RedisManager.instance.connectClients();
         }
-        await RedisManager.instance.connectClients();
         return RedisManager.instance;
     }
 
@@ -43,14 +46,14 @@ export class RedisManager {
 
         while (true) {
             try {
-                const data = await this.subscribeClient?.brPop(
+                const data = await this.workerClient?.brPop(
                     REDIS_QUEUE_NAME,
                     0,
                 );
                 if (!data) continue;
 
                 const request: EngineRequest = JSON.parse(data.element);
-                const response = this.engine.process(request);
+                const response = await this.engine.process(request);
                 await this.publishClient?.publish(
                     request.id,
                     JSON.stringify(response),
@@ -84,6 +87,16 @@ export class RedisManager {
                 JSON.stringify(result.data),
             );
         });
+    }
+
+    publishMessage(channel: string, data: unknown) {
+        return this.publishClient?.publish(channel, JSON.stringify(data));
+    }
+
+    subscribeMessage(channel: string, callBack: (message: string) => void) {
+        this.subscribeClient?.subscribe(channel, (message) =>
+            callBack(message),
+        );
     }
 
     private getRandomClientID() {

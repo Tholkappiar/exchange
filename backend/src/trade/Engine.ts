@@ -3,6 +3,7 @@ import { MarketRegistry } from "./MarketRegistry";
 import { Order, ORDER_STATUS } from "./OrderBook";
 import { EngineRequestSchema } from "../zod/EngineSchema";
 import { ORDER_TYPES } from "../utils/constants";
+import { RedisManager } from "../redis/RedisManager";
 
 export class Engine {
     private static instance: Engine | null = null;
@@ -19,7 +20,7 @@ export class Engine {
         return Engine.instance;
     }
 
-    process(request: unknown): EngineResponse {
+    process(request: unknown): EngineResponse | Promise<EngineResponse> {
         const result = EngineRequestSchema.safeParse(request);
         if (!result.success) {
             return {
@@ -41,6 +42,7 @@ export class Engine {
                 return this.getOpenOrders(validated.data);
             case ORDER_TYPES.GET_DEPTH:
                 return this.getDepth(validated.data);
+            /// todo: reset feature should be removed in the end
             case ORDER_TYPES.RESET_BOOK:
                 return this.marketRegistry.resetMarket(
                     validated.data.baseAsset,
@@ -49,7 +51,9 @@ export class Engine {
         }
     }
 
-    private createOrder(order: CreateOrderPayload): EngineResponse {
+    private async createOrder(
+        order: CreateOrderPayload,
+    ): Promise<EngineResponse> {
         const { baseAsset, quoteAsset } = order;
         const ticker = `${baseAsset}_${quoteAsset}`;
 
@@ -88,6 +92,26 @@ export class Engine {
 
         if (needsRefund && result.remainingQuantity > 0) {
             this.balanceManager.unlockBalance(order, result.remainingQuantity);
+        }
+
+        // publish depths
+        if (
+            result.depthDiff.bids.length > 0 ||
+            result.depthDiff.asks.length > 0
+        ) {
+            (await RedisManager.getInstance()).publishMessage(
+                `depth@${ticker}`,
+                result.depthDiff,
+            );
+        }
+
+        // publish trades
+        const liveFills = result.fills.filter((f) => f.executedQuantity > 0);
+        if (liveFills.length > 0) {
+            (await RedisManager.getInstance()).publishMessage(
+                `trades@${ticker}`,
+                JSON.stringify(liveFills),
+            );
         }
 
         return { success: true, data: result };

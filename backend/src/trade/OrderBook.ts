@@ -11,6 +11,7 @@ export class OrderBook {
     private askDepth: Map<number, number> = new Map();
 
     currentPrice = 0;
+    sequence = 0;
 
     constructor(baseAsset: string, quoteAsset: string) {
         this.baseAsset = baseAsset;
@@ -35,15 +36,20 @@ export class OrderBook {
             remaining: order.quantity,
         };
 
+        const changedBids = new Map<number, number>();
+        const changedAsks = new Map<number, number>();
+
         const fills =
             order.side === ORDER_SIDE.ASK
-                ? this.matchAsk(order)
-                : this.matchBid(order);
+                ? this.matchAsk(order, changedBids)
+                : this.matchBid(order, changedAsks);
 
         // only LIMIT orders can rest in the book
         if (order.remaining > 0 && order.orderType === "Limit") {
             this.insertOrder(order);
         }
+
+        const depthDiff = this.buildDepthDiff(changedAsks, changedBids);
 
         const totalExecutedQuantity = fills.reduce(
             (sum, f) => sum + f.executedQuantity,
@@ -74,10 +80,11 @@ export class OrderBook {
             status,
             reason,
             fills,
+            depthDiff,
         };
     }
 
-    private matchAsk(order: Order): Fills[] {
+    private matchAsk(order: Order, changedBids: Map<number, number>): Fills[] {
         const fills: Fills[] = [];
 
         while (
@@ -113,13 +120,18 @@ export class OrderBook {
                 this.bids.shift();
             }
 
-            this.updateDepth(this.bidDepth, bestBid.price!, -tradeQty);
+            this.updateDepth(
+                this.bidDepth,
+                bestBid.price!,
+                -tradeQty,
+                changedBids,
+            );
         }
 
         return fills;
     }
 
-    private matchBid(order: Order): Fills[] {
+    private matchBid(order: Order, changedAsks: Map<number, number>): Fills[] {
         const fills: Fills[] = [];
 
         // MARKET order by quantity
@@ -152,7 +164,12 @@ export class OrderBook {
                     this.asks.shift();
                 }
 
-                this.updateDepth(this.askDepth, bestAsk.price!, -tradeQty);
+                this.updateDepth(
+                    this.askDepth,
+                    bestAsk.price!,
+                    -tradeQty,
+                    changedAsks,
+                );
             }
 
             return fills;
@@ -319,11 +336,36 @@ export class OrderBook {
         return { openAsks, openBids };
     }
 
-    updateDepth(map: Map<number, number>, price: number, quantity: number) {
+    updateDepth(
+        map: Map<number, number>,
+        price: number,
+        quantity: number,
+        changed?: Map<number, number>,
+    ) {
         map.set(price, (map.get(price) || 0) + quantity);
         if (map.get(price)! == 0) {
             map.delete(price);
         }
+        changed?.set(price, 1); // marking the price
+    }
+
+    /// todo: test and verify this
+    private buildDepthDiff(
+        changedAsks: Map<number, number>,
+        changedBids: Map<number, number>,
+    ) {
+        return {
+            ticker: this.getTicker(),
+            sequence: ++this.sequence,
+            bids: Array.from(changedBids.entries()).map(([price, _]) => [
+                price.toString(),
+                (this.bidDepth.get(price) ?? 0).toString(),
+            ]),
+            asks: Array.from(changedAsks.entries()).map(([price, _]) => [
+                price.toString(),
+                (this.askDepth.get(price) ?? 0).toString(),
+            ]),
+        };
     }
 
     getDepth(limit = 100) {

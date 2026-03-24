@@ -24,8 +24,8 @@ describe("Engine – real trading session (BTC_USDT)", () => {
     });
 
     // ── 1. Alice places a limit bid at 30 000 – no asks yet, should rest OPEN
-    it("1. alice places limit BID 1 BTC @ 30 000 → OPEN", () => {
-        const response = engine.process({
+    it("1. alice places limit BID 1 BTC @ 30 000 → OPEN", async () => {
+        const response = await engine.process({
             id: "req-1",
             type: "CREATE_ORDER",
             data: {
@@ -51,8 +51,8 @@ describe("Engine – real trading session (BTC_USDT)", () => {
     });
 
     // ── 2. Bob places a limit ask at 30 000 – should fully fill against order-1
-    it("2. bob places limit ASK 1 BTC @ 30 000 → FILLED against alice's bid", () => {
-        const response = engine.process({
+    it("2. bob places limit ASK 1 BTC @ 30 000 → FILLED against alice's bid", async () => {
+        const response = await engine.process({
             id: "req-2",
             type: "CREATE_ORDER",
             data: {
@@ -81,8 +81,8 @@ describe("Engine – real trading session (BTC_USDT)", () => {
     });
 
     // ── 3. Book is now empty – alice places two resting limit bids
-    it("3. alice places limit BID 2 BTC @ 29 500 → OPEN (book was cleared)", () => {
-        const response = engine.process({
+    it("3. alice places limit BID 2 BTC @ 29 500 → OPEN (book was cleared)", async () => {
+        const response = await engine.process({
             id: "req-3",
             type: "CREATE_ORDER",
             data: {
@@ -105,8 +105,8 @@ describe("Engine – real trading session (BTC_USDT)", () => {
         expect(data.remainingQuantity).toBe(2);
     });
 
-    it("4. alice places limit BID 1 BTC @ 29 000 → OPEN", () => {
-        const response = engine.process({
+    it("4. alice places limit BID 1 BTC @ 29 000 → OPEN", async () => {
+        const response = await engine.process({
             id: "req-4",
             type: "CREATE_ORDER",
             data: {
@@ -128,8 +128,8 @@ describe("Engine – real trading session (BTC_USDT)", () => {
     });
 
     // ── 5. Bob sends a market ASK for 2 BTC – should eat order-3 entirely
-    it("5. bob places market ASK 2 BTC → FILLED at 29 500 (hits order-3)", () => {
-        const response = engine.process({
+    it("5. bob places market ASK 2 BTC → FILLED at 29 500 (hits order-3)", async () => {
+        const response = await engine.process({
             id: "req-5",
             type: "CREATE_ORDER",
             data: {
@@ -158,8 +158,8 @@ describe("Engine – real trading session (BTC_USDT)", () => {
     });
 
     // ── 6. Order-4 (1 BTC @ 29 000) still rests – verify via GET_OPEN_ORDERS
-    it("6. GET_OPEN_ORDERS for alice → only order-4 remains", () => {
-        const response = engine.process({
+    it("6. GET_OPEN_ORDERS for alice → only order-4 remains", async () => {
+        const response = await engine.process({
             id: "req-6",
             type: "GET_OPEN_ORDERS",
             data: { userID: "alice", ticker: "BTC_USDT" },
@@ -174,8 +174,8 @@ describe("Engine – real trading session (BTC_USDT)", () => {
     });
 
     // ── 7. Bob places a limit ask above order-4 – should rest, not fill
-    it("7. bob places limit ASK 1 BTC @ 31 000 → OPEN (price too high for order-4)", () => {
-        const response = engine.process({
+    it("7. bob places limit ASK 1 BTC @ 31 000 → OPEN (price too high for order-4)", async () => {
+        const response = await engine.process({
             id: "req-7",
             type: "CREATE_ORDER",
             data: {
@@ -198,8 +198,8 @@ describe("Engine – real trading session (BTC_USDT)", () => {
     });
 
     // ── 8. GET_DEPTH should show both resting orders
-    it("8. GET_DEPTH → bid @ 29 000 and ask @ 31 000", () => {
-        const response = engine.process({
+    it("8. GET_DEPTH → bid @ 29 000 and ask @ 31 000", async () => {
+        const response = await engine.process({
             id: "req-8",
             type: "GET_DEPTH",
             data: { ticker: "BTC_USDT" },
@@ -218,8 +218,8 @@ describe("Engine – real trading session (BTC_USDT)", () => {
     });
 
     // ── 9. Alice cancels her resting order-4
-    it("9. alice cancels order-4 (1 BTC @ 29 000) → cancelledQuantity = 1", () => {
-        const response = engine.process({
+    it("9. alice cancels order-4 (1 BTC @ 29 000) → cancelledQuantity = 1", async () => {
+        const response = await engine.process({
             id: "req-9",
             type: "CANCEL_ORDER",
             data: {
@@ -235,8 +235,8 @@ describe("Engine – real trading session (BTC_USDT)", () => {
     });
 
     // ── 10. After cancel, depth bids should be empty
-    it("10. GET_DEPTH after cancel → bids empty, ask @ 31 000 still there", () => {
-        const response = engine.process({
+    it("10. GET_DEPTH after cancel → bids empty, ask @ 31 000 still there", async () => {
+        const response = await engine.process({
             id: "req-10",
             type: "GET_DEPTH",
             data: { ticker: "BTC_USDT" },
@@ -250,8 +250,8 @@ describe("Engine – real trading session (BTC_USDT)", () => {
     });
 
     // ── 11. Alice places a market BID that hits bob's resting ask @ 31 000
-    it("11. alice places market BID qty=1 → FILLED at 31 000 (hits order-6)", () => {
-        const response = engine.process({
+    it("11. alice places market BID qty=1 → FILLED at 31 000 (hits order-6)", async () => {
+        const response = await engine.process({
             id: "req-11",
             type: "CREATE_ORDER",
             data: {
@@ -277,8 +277,8 @@ describe("Engine – real trading session (BTC_USDT)", () => {
     });
 
     // ── 12. Book is completely empty now – market order should be REJECTED
-    it("12. market BID on empty book → REJECTED with NO_LIQUIDITY", () => {
-        const response = engine.process({
+    it("12. market BID on empty book → REJECTED with NO_LIQUIDITY", async () => {
+        const response = await engine.process({
             id: "req-12",
             type: "CREATE_ORDER",
             data: {
