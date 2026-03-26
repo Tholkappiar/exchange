@@ -1,6 +1,6 @@
 import { BalanceManager } from "./BalanceManager";
 import { MarketRegistry } from "./MarketRegistry";
-import { Order, ORDER_STATUS } from "./OrderBook";
+import { Fills, Order, ORDER_STATUS, OrderReason } from "./OrderBook";
 import { EngineRequestSchema } from "../zod/EngineSchema";
 import { ORDER_TYPES } from "../utils/constants";
 import { RedisManager } from "../redis/RedisManager";
@@ -67,7 +67,7 @@ export class Engine {
             this.balanceManager.addUserBalance(order.userID, order.baseAsset);
         }
 
-        const result = book.addOrder(order);
+        const result = await book.addOrder(order);
 
         for (const fill of result.fills) {
             const buyerID =
@@ -94,25 +94,7 @@ export class Engine {
             this.balanceManager.unlockBalance(order, result.remainingQuantity);
         }
 
-        // publish depths
-        if (
-            result.depthDiff.bids.length > 0 ||
-            result.depthDiff.asks.length > 0
-        ) {
-            (await RedisManager.getInstance()).publishMessage(
-                `depth@${ticker}`,
-                result.depthDiff,
-            );
-        }
-
-        // publish trades
-        const liveFills = result.fills.filter((f) => f.executedQuantity > 0);
-        if (liveFills.length > 0) {
-            (await RedisManager.getInstance()).publishMessage(
-                `trades@${ticker}`,
-                JSON.stringify(liveFills),
-            );
-        }
+        await this.broadcastDataToRedis(result, ticker);
 
         return { success: true, data: result };
     }
@@ -150,7 +132,6 @@ export class Engine {
     }
 
     private getOpenOrders(payload: GetOpenOrdersPayload): EngineResponse {
-        console.log("pay : ", payload);
         const book = this.marketRegistry.getBook(payload.ticker);
         if (!book) {
             return {
@@ -178,6 +159,31 @@ export class Engine {
             success: true,
             data: book.getDepth(payload.limit),
         };
+    }
+
+    private async broadcastDataToRedis(
+        result: BroadcastDataToRedis,
+        ticker: string,
+    ) {
+        // publish depths
+        if (
+            result.depthDiff.bids.length > 0 ||
+            result.depthDiff.asks.length > 0
+        ) {
+            (await RedisManager.getInstance()).publishMessage(
+                `depth@${ticker}`,
+                result.depthDiff,
+            );
+        }
+
+        // publish trades
+        const liveFills = result.fills.filter((f) => f.executedQuantity > 0);
+        if (liveFills.length > 0) {
+            (await RedisManager.getInstance()).publishMessage(
+                `trades@${ticker}`,
+                JSON.stringify(liveFills),
+            );
+        }
     }
 }
 
@@ -215,3 +221,17 @@ export type EngineRequest =
 export type EngineResponse<T = unknown> =
     | { success: true; data: T }
     | { success: false; error: string };
+
+export type BroadcastDataToRedis = {
+    totalExecutedQuantity: number;
+    remainingQuantity: number;
+    status: "OPEN" | "PARTIALLY_FILLED" | "FILLED" | "REJECTED";
+    reason: OrderReason | undefined;
+    fills: Fills[];
+    depthDiff: {
+        ticker: string;
+        sequence: number;
+        bids: string[][];
+        asks: string[][];
+    };
+};

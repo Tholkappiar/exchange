@@ -1,5 +1,7 @@
+import { RedisManager } from "../redis/RedisManager";
 import { ORDER_SIDE } from "../utils/constants";
 
+// todo: should be renamed to Market
 export class OrderBook {
     private baseAsset: string;
     private quoteAsset: string;
@@ -9,6 +11,18 @@ export class OrderBook {
 
     private bidDepth: Map<number, number> = new Map();
     private askDepth: Map<number, number> = new Map();
+
+    // ticker states
+    ticker: TickerState = {
+        lastPrice: 0,
+        open24h: 0,
+        low24h: null,
+        high24h: 0,
+        volume24h: 0,
+        priceChange: 0,
+    };
+
+    trades: TradesState = [];
 
     currentPrice = 0;
     sequence = 0;
@@ -30,7 +44,7 @@ export class OrderBook {
         return this.quoteAsset;
     }
 
-    addOrder(order: Order) {
+    async addOrder(order: Order) {
         order = {
             ...order,
             remaining: order.quantity,
@@ -74,6 +88,12 @@ export class OrderBook {
             reason = ORDER_REASON.INSUFFICIENT_LIQUIDITY;
         }
 
+        if (fills.length > 0) {
+            for (const fill of fills) {
+                await this.tickerChange(fill.price, fill.executedQuantity);
+            }
+        }
+
         return {
             totalExecutedQuantity,
             remainingQuantity: order.remaining,
@@ -82,6 +102,45 @@ export class OrderBook {
             fills,
             depthDiff,
         };
+    }
+
+    // tickerChange — clean version
+    private async tickerChange(price: number, quantity: number) {
+        const now = Date.now();
+        const cutoff = now - 24 * 60 * 60 * 1000;
+
+        this.trades.push({ price, quantity, timestamp: now });
+
+        while (this.trades.length > 0 && this.trades[0].timestamp < cutoff) {
+            this.trades.shift();
+        }
+
+        const trades = this.trades;
+
+        this.ticker.lastPrice = price;
+        this.ticker.open24h = trades[0]?.price ?? price;
+        this.ticker.high24h = Math.max(...trades.map((t) => t.price));
+        this.ticker.low24h =
+            trades.length > 0 ? Math.min(...trades.map((t) => t.price)) : null;
+        this.ticker.volume24h = trades.reduce((sum, t) => sum + t.quantity, 0);
+        this.ticker.priceChange =
+            this.ticker.open24h > 0
+                ? ((price - this.ticker.open24h) / this.ticker.open24h) * 100
+                : 0;
+
+        const redisData = {
+            lastPrice: this.ticker.lastPrice,
+            open24h: this.ticker.open24h,
+            low24h: this.ticker.low24h,
+            high24h: this.ticker.high24h,
+            volume24h: this.ticker.volume24h,
+            priceChange: this.ticker.priceChange,
+        };
+
+        (await RedisManager.getInstance()).publishMessage(
+            `ticker@${this.getTicker()}`,
+            redisData,
+        );
     }
 
     private matchAsk(order: Order, changedBids: Map<number, number>): Fills[] {
@@ -397,6 +456,10 @@ export class OrderBook {
     getAsksLength() {
         return this.asks.length;
     }
+
+    getTickerData() {
+        return this.ticker;
+    }
 }
 
 export type Order = {
@@ -445,3 +508,18 @@ export const ORDER_REASON = {
 } as const;
 
 export type OrderReason = (typeof ORDER_REASON)[keyof typeof ORDER_REASON];
+
+export type TickerState = {
+    lastPrice: number;
+    open24h: number;
+    low24h: null | number;
+    high24h: number;
+    volume24h: number;
+    priceChange: number;
+};
+
+export type TradesState = {
+    price: number;
+    quantity: number;
+    timestamp: number;
+}[];

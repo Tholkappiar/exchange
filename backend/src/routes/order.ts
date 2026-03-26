@@ -14,6 +14,16 @@ orderRouter.post("/order", async (req, res) => {
     const payload = req.body;
     const instance = await RedisManager.getInstance();
     const response = await instance.sendAndAwait(payload);
-    console.log("response : ", response);
+    res.send(response);
+});
+
+orderRouter.get("/tickers", async (req, res) => {
+    const response = MarketRegistry.getInstance().getAllTickers();
+    res.send(response);
+});
+
+orderRouter.get("/ticker", async (req, res) => {
+    const payload = req.body;
+    const response = MarketRegistry.getInstance().getTicker(payload);
     res.send(response);
 });

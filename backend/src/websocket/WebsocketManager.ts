@@ -52,8 +52,6 @@ export class WebsocketManager {
 
                 const redis = await RedisManager.getInstance();
                 redis.subscribeMessage(channel, (message) => {
-                    console.log("redis data : ", message);
-
                     this.users.forEach((u) => {
                         if (
                             u.params[0] === channel &&

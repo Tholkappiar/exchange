@@ -1,3 +1,4 @@
+import { getTickerSchema } from "../zod/MarketRegistry";
 import { EngineResponse } from "./Engine";
 import { OrderBook } from "./OrderBook";
 
@@ -39,8 +40,22 @@ export class MarketRegistry {
         return this.books.has(ticker.toUpperCase());
     }
 
-    getAllTickers(): string[] {
-        return Array.from(this.books.keys());
+    getAllTickers() {
+        return Array.from(this.books.entries()).map(([key, book]) => ({
+            ticker: key,
+            ...book.getTickerData(),
+        }));
+    }
+
+    getTicker(payload: { symbol: string }) {
+        const result = getTickerSchema.safeParse(payload);
+        if (!result.success) {
+            return {
+                success: false,
+                error: result.error,
+            };
+        }
+        return this.books.get(payload.symbol);
     }
 
     resetMarket(baseAsset: string, quoteAsset: string): EngineResponse {
