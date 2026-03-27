@@ -2,6 +2,7 @@ import { RedisManager } from "../redis/RedisManager";
 import { ORDER_SIDE } from "../utils/constants";
 
 // todo: should be renamed to Market
+// todo: only use USDT to buy
 export class OrderBook {
     private baseAsset: string;
     private quoteAsset: string;
@@ -505,6 +506,7 @@ export const ORDER_REASON = {
     INSUFFICIENT_LIQUIDITY: "INSUFFICIENT_LIQUIDITY",
     INVALID_ORDER: "INVALID_ORDER",
     ORDER_NOT_FOUND: "ORDER_NOT_FOUND",
+    INSUFFICIENT_AMOUNT: "INSUFFICIENT_AMOUNT",
 } as const;
 
 export type OrderReason = (typeof ORDER_REASON)[keyof typeof ORDER_REASON];

@@ -1,5 +1,4 @@
-import * as dotenv from "dotenv";
-dotenv.config();
+import "dotenv/config";
 import express from "express";
 import { orderRouter } from "./routes/order";
 import { RedisManager } from "./redis/RedisManager";

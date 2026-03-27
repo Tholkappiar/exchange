@@ -9,16 +9,14 @@ const OrderTypeSchema = z.enum(["Market", "Limit"]);
 // ─── order (base shape used by CREATE_ORDER) ─────────────────────────────────
 
 export const OrderSchema = z.object({
-    orderID: z.string().min(1),
     orderType: OrderTypeSchema,
     side: OrderSideSchema,
     baseAsset: z.string().min(1),
     quoteAsset: z.string().min(1),
-    userID: z.string().min(1),
+    userID: z.string(),
     price: z.number().positive().optional(),
     quantity: z.number().nonnegative(),
     remaining: z.number().nonnegative(),
-    createdAt: z.number(),
 });
 
 // ─── individual payload schemas ──────────────────────────────────────────────
@@ -26,14 +24,14 @@ export const OrderSchema = z.object({
 export const CreateOrderPayloadSchema = OrderSchema;
 
 export const CancelOrderPayloadSchema = z.object({
-    orderID: z.string().min(1),
+    orderID: z.uuid(),
     userID: z.string().min(1),
     side: OrderSideSchema,
     ticker: z.string().min(1),
 });
 
 export const GetOpenOrdersPayloadSchema = z.object({
-    userID: z.string().min(1),
+    userID: z.uuid(),
     ticker: z.string().min(1),
 });
 

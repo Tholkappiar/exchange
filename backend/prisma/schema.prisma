@@ -12,8 +12,102 @@ datasource db {
   provider = "postgresql"
 }
 
-model User { 
-  id    Int     @id @default(autoincrement()) 
-  email String  @unique
-  name  String?
-} 
+enum OrderSide {
+  BID
+  ASK
+}
+
+enum OrderType {
+  LIMIT
+  MARKET
+}
+
+enum OrderStatus {
+  OPEN
+  FILLED
+  CANCELLED
+}
+
+enum LedgerReason {
+  ORDER_FILL
+  LOCK
+  UNLOCK
+}
+
+model User {
+  id        String   @id              
+  email     String?  @unique
+  createdAt DateTime @db.Timestamptz
+
+  balances  Balance[]
+  orders    Order[]
+  makerFills Fill[] @relation("maker")
+  takerFills Fill[] @relation("taker")
+  ledger    BalanceLedger[]
+}
+
+
+model Balance {
+  id        Int      @id @default(autoincrement())
+  userID    String
+  asset     String
+  free      Decimal
+  locked    Decimal
+  updatedAt DateTime @db.Timestamptz
+
+  user User @relation(fields: [userID], references: [id])
+
+  @@unique([userID, asset])
+}
+
+model Order {
+  id        String   @id
+  userID    String
+  ticker    String
+  side      OrderSide
+  orderType OrderType
+  price     Decimal?
+  quantity  Decimal
+  remaining Decimal
+  status    OrderStatus
+  createdAt DateTime @db.Timestamptz
+  updatedAt DateTime @db.Timestamptz
+
+  user User @relation(fields: [userID], references: [id])
+}
+
+// todo: hypertable ?
+model Fill {
+  id        Int      @id @default(autoincrement())
+  ticker    String
+  price     Decimal
+  quantity  Decimal
+  side      OrderSide
+  makerID   String
+  takerID   String
+  createdAt DateTime @db.Timestamptz
+
+  maker User @relation("maker", fields: [makerID], references: [id])
+  taker User @relation("taker", fields: [takerID], references: [id])
+}
+
+model BalanceLedger {
+  id          Int      @id @default(autoincrement())
+  userID      String
+  asset       String
+  amount      Decimal
+  reason      LedgerReason
+  referenceID String?
+  createdAt   DateTime @db.Timestamptz
+
+  user User @relation(fields: [userID], references: [id])
+}
+
+// WAL: Write Ahead Log - just log into this
+model WALEvent {
+    id          Int       @id @default(autoincrement())
+    type        String
+    payload     Json
+    createdAt   DateTime  @db.Timestamptz
+    processedAt DateTime? @db.Timestamptz
+}

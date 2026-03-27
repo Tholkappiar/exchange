@@ -4,6 +4,8 @@ import { Fills, Order, ORDER_STATUS, OrderReason } from "./OrderBook";
 import { EngineRequestSchema } from "../zod/EngineSchema";
 import { ORDER_TYPES } from "../utils/constants";
 import { RedisManager } from "../redis/RedisManager";
+import crypto from "crypto";
+import { DbOrderCancel } from "../DB/transactions";
 
 export class Engine {
     private static instance: Engine | null = null;
@@ -21,6 +23,7 @@ export class Engine {
     }
 
     process(request: unknown): EngineResponse | Promise<EngineResponse> {
+        console.log(request);
         const result = EngineRequestSchema.safeParse(request);
         if (!result.success) {
             return {
@@ -35,7 +38,11 @@ export class Engine {
 
         switch (validated.type) {
             case ORDER_TYPES.CREATE_ORDER:
-                return this.createOrder(validated.data);
+                return this.createOrder({
+                    ...validated.data,
+                    orderID: crypto.randomUUID(),
+                    createdAt: Date.now(),
+                });
             case ORDER_TYPES.CANCEL_ORDER:
                 return this.cancelOrder(validated.data);
             case ORDER_TYPES.GET_OPEN_ORDERS:
@@ -99,7 +106,9 @@ export class Engine {
         return { success: true, data: result };
     }
 
-    private cancelOrder(payload: CancelOrderPayload): EngineResponse {
+    private async cancelOrder(
+        payload: CancelOrderPayload,
+    ): Promise<EngineResponse> {
         const book = this.marketRegistry.getBook(payload.ticker);
         if (!book) {
             return {
@@ -124,6 +133,14 @@ export class Engine {
         };
 
         this.balanceManager.unlockBalance(order, cancelledQuantity);
+
+        await DbOrderCancel(
+            payload.orderID,
+            payload.userID,
+            payload.side === "BID" ? order.quoteAsset : order.baseAsset,
+            cancelledQuantity,
+            order.price!,
+        );
 
         return {
             success: true,
