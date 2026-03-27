@@ -1,12 +1,19 @@
 import { BalanceManager } from "./BalanceManager";
 import { MarketRegistry } from "./MarketRegistry";
-import { Fills, Order, ORDER_STATUS, OrderReason } from "./OrderBook";
+import {
+    Fills,
+    Order,
+    ORDER_REASON,
+    ORDER_STATUS,
+    OrderReason,
+} from "./OrderBook";
 import { EngineRequestSchema } from "../zod/EngineSchema";
 import { ORDER_TYPES } from "../utils/constants";
 import { RedisManager } from "../redis/RedisManager";
 import crypto from "crypto";
 import { DbOrderCancel } from "../DB/transactions";
 
+// todo: implement Self-trade prevention - yes or no ?
 export class Engine {
     private static instance: Engine | null = null;
 
@@ -69,9 +76,14 @@ export class Engine {
             return { success: false, error: `Market ${ticker} does not exist` };
         }
 
+        const hasBalance = this.balanceManager.validateBalance(order);
+        if (!hasBalance) {
+            return { success: false, error: ORDER_REASON.INSUFFICIENT_BALANCE };
+        }
+
         const locked = this.balanceManager.lockBalance(order);
         if (!locked) {
-            this.balanceManager.addUserBalance(order.userID, order.baseAsset);
+            return { success: false, error: ORDER_REASON.LOCK_FAILED };
         }
 
         const result = await book.addOrder(order);

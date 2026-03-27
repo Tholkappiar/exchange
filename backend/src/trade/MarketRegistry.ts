@@ -1,4 +1,4 @@
-import { getTickerSchema } from "../zod/MarketRegistry";
+import { getTickerSchema } from "../zod/MarketRegistrySchema";
 import { EngineResponse } from "./Engine";
 import { OrderBook } from "./OrderBook";
 
@@ -47,15 +47,15 @@ export class MarketRegistry {
         }));
     }
 
-    getTicker(payload: { symbol: string }) {
-        const result = getTickerSchema.safeParse(payload);
+    getTicker(symbol: string) {
+        const result = getTickerSchema.safeParse(symbol);
         if (!result.success) {
             return {
                 success: false,
                 error: result.error,
             };
         }
-        return this.books.get(payload.symbol);
+        return this.books.get(symbol);
     }
 
     resetMarket(baseAsset: string, quoteAsset: string): EngineResponse {

@@ -23,19 +23,31 @@ export class BalanceManager {
             quoteAsset,
         } = order;
 
-        if (side === "BID") {
-            if (orderType === "Market" && price && !quantity) {
-                const quoteBalance = this.getBalance(userID, quoteAsset);
-                return !!quoteBalance && quoteBalance.free >= price;
-            }
-
-            const cost = price! * quantity;
-            const quoteBalance = this.getBalance(userID, quoteAsset);
-            return !!quoteBalance && quoteBalance.free >= cost;
+        if (side === "ASK") {
+            // selling base asset — check free base balance
+            const baseBalance = this.getBalance(userID, baseAsset);
+            return !!baseBalance && baseBalance.free >= quantity;
         }
 
-        const baseBalance = this.getBalance(userID, baseAsset);
-        return !!baseBalance && baseBalance.free >= quantity;
+        // BID cases
+        if (orderType === "Market" && price && !quantity) {
+            // market buy by quote amount (spend X USDT)
+            const quoteBalance = this.getBalance(userID, quoteAsset);
+            return !!quoteBalance && quoteBalance.free >= price;
+        }
+
+        if (orderType === "Market" && quantity && !price) {
+            // market buy by quantity — we don't know cost yet (no price)
+            // just check they have any balance at all, matching will handle the rest
+            const quoteBalance = this.getBalance(userID, quoteAsset);
+            return !!quoteBalance && quoteBalance.free > 0;
+        }
+
+        // limit BID — worst case cost is price * quantity
+        if (!price) return false;
+        const cost = price * quantity;
+        const quoteBalance = this.getBalance(userID, quoteAsset);
+        return !!quoteBalance && quoteBalance.free >= cost;
     }
 
     lockBalance(order: Order): boolean {
