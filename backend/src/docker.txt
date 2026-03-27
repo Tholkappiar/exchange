@@ -1,0 +1,2 @@
+docker run -p 5432:5432 -d -e POSTGRES_PASSWORD=password timescale/timescaledb:latest-pg16
+docker run -d -p 6379:6379 redis
