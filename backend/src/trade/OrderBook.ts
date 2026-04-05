@@ -102,6 +102,7 @@ export class OrderBook {
             reason,
             fills,
             depthDiff,
+            orderID: order.orderID
         };
     }
 
@@ -150,23 +151,20 @@ export class OrderBook {
         while (
             order.remaining > 0 &&
             this.bids.length > 0 &&
-            this.bids[0].price !== undefined &&
-            (order.orderType === "Market" || this.bids[0].price >= order.price!)
+            (order.orderType === "Market" || this.bids[0].price >= order.price)
         ) {
             const bestBid = this.bids[0];
-
             const tradeQty = Math.min(order.remaining, bestBid.remaining);
 
             order.remaining -= tradeQty;
             bestBid.remaining -= tradeQty;
-
-            this.currentPrice = bestBid.price!;
+            this.currentPrice = bestBid.price;
 
             fills.push({
                 clientId: "",
                 createdAt: "",
-                executedQuantity: tradeQty,
                 id: "",
+                executedQuantity: tradeQty,
                 oppositeUserId: bestBid.userID,
                 orderType: order.orderType,
                 price: this.currentPrice,
@@ -176,13 +174,11 @@ export class OrderBook {
                 quoteAsset: order.quoteAsset,
             });
 
-            if (bestBid.remaining === 0) {
-                this.bids.shift();
-            }
+            if (bestBid.remaining === 0) this.bids.shift();
 
             this.updateDepth(
                 this.bidDepth,
-                bestBid.price!,
+                bestBid.price,
                 -tradeQty,
                 changedBids,
             );
@@ -194,115 +190,26 @@ export class OrderBook {
     private matchBid(order: Order, changedAsks: Map<number, number>): Fills[] {
         const fills: Fills[] = [];
 
-        // MARKET order by quantity
-        if (order.orderType === "Market" && order.quantity) {
-            while (order.remaining > 0 && this.asks.length > 0) {
-                const bestAsk = this.asks[0];
+        const priceLimit =
+            order.orderType === "Market" ? Infinity : order.price;
 
-                const tradeQty = Math.min(order.remaining, bestAsk.remaining);
-
-                order.remaining -= tradeQty;
-                bestAsk.remaining -= tradeQty;
-
-                this.currentPrice = bestAsk.price!;
-
-                fills.push({
-                    clientId: "",
-                    createdAt: "",
-                    executedQuantity: tradeQty,
-                    id: "",
-                    oppositeUserId: bestAsk.userID,
-                    orderType: order.orderType,
-                    price: this.currentPrice,
-                    side: order.side,
-                    ticker: this.getTicker(),
-                    baseAsset: order.baseAsset,
-                    quoteAsset: order.quoteAsset,
-                });
-
-                if (bestAsk.remaining === 0) {
-                    this.asks.shift();
-                }
-
-                this.updateDepth(
-                    this.askDepth,
-                    bestAsk.price!,
-                    -tradeQty,
-                    changedAsks,
-                );
-            }
-
-            return fills;
-        }
-
-        // MARKET order by quote amount (spend quote currency)
-        if (order.orderType === "Market" && order.price) {
-            let remainingQuote = order.price;
-
-            while (remainingQuote > 0 && this.asks.length > 0) {
-                const bestAsk = this.asks[0];
-
-                const maxCost = bestAsk.price! * bestAsk.remaining;
-
-                let tradeQty: number;
-
-                if (remainingQuote >= maxCost) {
-                    tradeQty = bestAsk.remaining;
-                } else {
-                    tradeQty = remainingQuote / bestAsk.price!;
-                }
-
-                remainingQuote -= tradeQty * bestAsk.price!;
-
-                bestAsk.remaining -= tradeQty;
-                order.remaining -= tradeQty;
-                this.currentPrice = bestAsk.price!;
-
-                fills.push({
-                    clientId: "",
-                    createdAt: "",
-                    executedQuantity: tradeQty,
-                    id: "",
-                    oppositeUserId: bestAsk.userID,
-                    orderType: order.orderType,
-                    price: this.currentPrice,
-                    side: order.side,
-                    ticker: this.getTicker(),
-                    baseAsset: order.baseAsset,
-                    quoteAsset: order.quoteAsset,
-                });
-
-                if (bestAsk.remaining === 0) {
-                    this.asks.shift();
-                }
-
-                this.updateDepth(this.askDepth, bestAsk.price!, -tradeQty);
-            }
-
-            return fills;
-        }
-
-        // LIMIT order
         while (
             order.remaining > 0 &&
             this.asks.length > 0 &&
-            this.asks[0].price !== undefined &&
-            this.asks[0].price <= order.price!
+            this.asks[0].price <= priceLimit
         ) {
             const bestAsk = this.asks[0];
-
             const tradeQty = Math.min(order.remaining, bestAsk.remaining);
 
             order.remaining -= tradeQty;
             bestAsk.remaining -= tradeQty;
-
-            this.currentPrice = bestAsk.price!;
+            this.currentPrice = bestAsk.price;
 
             fills.push({
                 clientId: "",
                 createdAt: "",
-                executedQuantity: tradeQty,
                 id: "",
+                executedQuantity: tradeQty,
                 oppositeUserId: bestAsk.userID,
                 orderType: order.orderType,
                 price: this.currentPrice,
@@ -312,11 +219,14 @@ export class OrderBook {
                 quoteAsset: order.quoteAsset,
             });
 
-            this.updateDepth(this.askDepth, bestAsk.price!, -tradeQty);
+            if (bestAsk.remaining === 0) this.asks.shift();
 
-            if (bestAsk.remaining === 0) {
-                this.asks.shift();
-            }
+            this.updateDepth(
+                this.askDepth,
+                bestAsk.price,
+                -tradeQty,
+                changedAsks,
+            );
         }
 
         return fills;
@@ -325,38 +235,35 @@ export class OrderBook {
     private insertOrder(order: Order) {
         if (order.side === ORDER_SIDE.ASK) {
             this.asks.push(order);
-            this.asks.sort((a, b) => {
-                if (a.price! !== b.price!) return a.price! - b.price!; // lowest ask first
-                return a.createdAt - b.createdAt;
-            });
-            this.updateDepth(this.askDepth, order.price!, order.remaining);
+            this.asks.sort((a, b) =>
+                a.price !== b.price
+                    ? a.price - b.price
+                    : a.createdAt - b.createdAt,
+            );
+            this.updateDepth(this.askDepth, order.price, order.remaining);
         } else {
             this.bids.push(order);
-            this.bids.sort((a, b) => {
-                if (b.price! !== a.price!) return b.price! - a.price!; // highest bid first
-                return a.createdAt - b.createdAt;
-            });
-            this.updateDepth(this.bidDepth, order.price!, order.remaining);
+            this.bids.sort((a, b) =>
+                b.price !== a.price
+                    ? b.price - a.price
+                    : a.createdAt - b.createdAt,
+            );
+            this.updateDepth(this.bidDepth, order.price, order.remaining);
         }
     }
 
     cancelBid(orderID: string, userID: string) {
         const index = this.bids.findIndex(
-            (bid) => bid.orderID === orderID && bid.userID === userID,
+            (b) => b.orderID === orderID && b.userID === userID,
         );
-        if (index === -1) {
+        if (index === -1)
             return { success: false, reason: ORDER_REASON.ORDER_NOT_FOUND };
-        }
-        const [removedOrder] = this.bids.splice(index, 1);
-        this.updateDepth(
-            this.bidDepth,
-            removedOrder.price!,
-            -removedOrder.remaining,
-        );
+        const [removed] = this.bids.splice(index, 1);
+        this.updateDepth(this.bidDepth, removed.price, -removed.remaining);
         return {
             success: true,
-            cancelledQuantity: removedOrder.remaining,
-            order: removedOrder,
+            cancelledQuantity: removed.remaining,
+            order: removed,
         };
     }
 
@@ -364,19 +271,14 @@ export class OrderBook {
         const index = this.asks.findIndex(
             (o) => o.orderID === orderID && o.userID === userID,
         );
-        if (index === -1) {
+        if (index === -1)
             return { success: false, reason: ORDER_REASON.ORDER_NOT_FOUND };
-        }
-        const [removedOrder] = this.asks.splice(index, 1);
-        this.updateDepth(
-            this.askDepth,
-            removedOrder.price!,
-            -removedOrder.remaining,
-        );
+        const [removed] = this.asks.splice(index, 1);
+        this.updateDepth(this.askDepth, removed.price, -removed.remaining);
         return {
             success: true,
-            cancelledQuantity: removedOrder.remaining,
-            order: removedOrder,
+            cancelledQuantity: removed.remaining,
+            order: removed,
         };
     }
 
@@ -465,7 +367,7 @@ export class OrderBook {
 
 export type Order = {
     orderType: "Market" | "Limit";
-    price?: number;
+    price: number;
     baseAsset: string;
     quoteAsset: string;
     side: "BID" | "ASK";

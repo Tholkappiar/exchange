@@ -14,9 +14,9 @@ export const OrderSchema = z.object({
     baseAsset: z.string().min(1),
     quoteAsset: z.string().min(1),
     userID: z.string(),
-    price: z.number().positive().optional(),
-    quantity: z.number().nonnegative(),
-    remaining: z.number().nonnegative(),
+    price: z.number().positive(),
+    quantity: z.number().positive(),
+    // remaining: z.number().positive(),
 });
 
 // ─── individual payload schemas ──────────────────────────────────────────────
@@ -31,7 +31,7 @@ export const CancelOrderPayloadSchema = z.object({
 });
 
 export const GetOpenOrdersPayloadSchema = z.object({
-    userID: z.uuid(),
+    userID: z.string().min(1),
     ticker: z.string().min(1),
 });
 

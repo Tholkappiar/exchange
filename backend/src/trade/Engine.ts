@@ -11,7 +11,7 @@ import { EngineRequestSchema } from "../zod/EngineSchema";
 import { ORDER_TYPES } from "../utils/constants";
 import { RedisManager } from "../redis/RedisManager";
 import crypto from "crypto";
-import { DbOrderCancel } from "../DB/transactions";
+import { DbOrderCancel, DbOrderCreation } from "../DB/transactions";
 
 // todo: implement Self-trade prevention - yes or no ?
 export class Engine {
@@ -30,7 +30,6 @@ export class Engine {
     }
 
     process(request: unknown): EngineResponse | Promise<EngineResponse> {
-        console.log(request);
         const result = EngineRequestSchema.safeParse(request);
         if (!result.success) {
             return {
@@ -49,6 +48,7 @@ export class Engine {
                     ...validated.data,
                     orderID: crypto.randomUUID(),
                     createdAt: Date.now(),
+                    remaining: validated.data.quantity,
                 });
             case ORDER_TYPES.CANCEL_ORDER:
                 return this.cancelOrder(validated.data);
@@ -113,6 +113,8 @@ export class Engine {
             this.balanceManager.unlockBalance(order, result.remainingQuantity);
         }
 
+        await DbOrderCreation(order, result);
+
         await this.broadcastDataToRedis(result, ticker);
 
         return { success: true, data: result };
@@ -151,7 +153,7 @@ export class Engine {
             payload.userID,
             payload.side === "BID" ? order.quoteAsset : order.baseAsset,
             cancelledQuantity,
-            order.price!,
+            order.price,
         );
 
         return {

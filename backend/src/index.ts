@@ -8,7 +8,7 @@ import { createUserIfNotExist } from "./utils/helperFunctions";
 import { TickerRouter } from "./routes/ticker";
 import { UserBalanceRouter } from "./routes/userBalance";
 
-const app = express();
+export const app = express();
 
 app.use(express.json());
 app.use(clerkMiddleware());

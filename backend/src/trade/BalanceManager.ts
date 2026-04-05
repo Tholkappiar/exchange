@@ -13,101 +13,52 @@ export class BalanceManager {
     }
 
     validateBalance(order: Order): boolean {
-        const {
-            userID,
-            side,
-            orderType,
-            price,
-            quantity,
-            baseAsset,
-            quoteAsset,
-        } = order;
+        const { userID, side, price, quantity, baseAsset, quoteAsset } = order;
 
         if (side === "ASK") {
-            // selling base asset — check free base balance
-            const baseBalance = this.getBalance(userID, baseAsset);
-            return !!baseBalance && baseBalance.free >= quantity;
+            const bal = this.getBalance(userID, baseAsset);
+            return !!bal && bal.free >= quantity;
         }
 
-        // BID cases
-        if (orderType === "Market" && price && !quantity) {
-            // market buy by quote amount (spend X USDT)
-            const quoteBalance = this.getBalance(userID, quoteAsset);
-            return !!quoteBalance && quoteBalance.free >= price;
-        }
-
-        if (orderType === "Market" && quantity && !price) {
-            // market buy by quantity — we don't know cost yet (no price)
-            // just check they have any balance at all, matching will handle the rest
-            const quoteBalance = this.getBalance(userID, quoteAsset);
-            return !!quoteBalance && quoteBalance.free > 0;
-        }
-
-        // limit BID — worst case cost is price * quantity
-        if (!price) return false;
         const cost = price * quantity;
-        const quoteBalance = this.getBalance(userID, quoteAsset);
-        return !!quoteBalance && quoteBalance.free >= cost;
+        const bal = this.getBalance(userID, quoteAsset);
+        return !!bal && bal.free >= cost;
     }
 
     lockBalance(order: Order): boolean {
         if (!this.validateBalance(order)) return false;
-
-        const {
-            userID,
-            side,
-            orderType,
-            price,
-            quantity,
-            baseAsset,
-            quoteAsset,
-        } = order;
+        const { userID, side, price, quantity, baseAsset, quoteAsset } = order;
 
         if (side === "ASK") {
-            const baseBalance = this.getBalance(userID, baseAsset)!;
-            baseBalance.free -= quantity;
-            baseBalance.locked += quantity;
+            const bal = this.getBalance(userID, baseAsset)!;
+            bal.free -= quantity;
+            bal.locked += quantity;
             return true;
         }
 
-        if (orderType === "Market" && price && !quantity) {
-            const quoteBalance = this.getBalance(userID, quoteAsset)!;
-            quoteBalance.free -= price;
-            quoteBalance.locked += price;
-            return true;
-        }
-
-        const worstCaseCost = price! * quantity;
-        const quoteBalance = this.getBalance(userID, quoteAsset)!;
-        quoteBalance.free -= worstCaseCost;
-        quoteBalance.locked += worstCaseCost;
+        const cost = price * quantity;
+        const bal = this.getBalance(userID, quoteAsset)!;
+        bal.free -= cost;
+        bal.locked += cost;
         return true;
     }
 
     unlockBalance(order: Order, remainingQty: number): boolean {
-        const { userID, side, orderType, price, baseAsset, quoteAsset } = order;
+        const { userID, side, price, baseAsset, quoteAsset } = order;
 
         if (side === "ASK") {
-            const baseBalance = this.getBalance(userID, baseAsset);
-            if (!baseBalance) return false;
-            baseBalance.locked -= remainingQty;
-            baseBalance.free += remainingQty;
+            const bal = this.getBalance(userID, baseAsset);
+            if (!bal) return false;
+            bal.locked -= remainingQty;
+            bal.free += remainingQty;
             return true;
         }
 
-        if (orderType === "Market" && price && !order.quantity) {
-            const quoteBalance = this.getBalance(userID, quoteAsset);
-            if (!quoteBalance) return false;
-            quoteBalance.locked -= remainingQty;
-            quoteBalance.free += remainingQty;
-            return true;
-        }
-
-        const refund = price! * remainingQty;
-        const quoteBalance = this.getBalance(userID, quoteAsset);
-        if (!quoteBalance) return false;
-        quoteBalance.locked -= refund;
-        quoteBalance.free += refund;
+        const refund = price * remainingQty;
+        const bal = this.getBalance(userID, quoteAsset);
+        if (!bal) return false;
+        bal.locked -= refund;
+        bal.free += refund;
         return true;
     }
 
@@ -142,19 +93,16 @@ export class BalanceManager {
         return this.balances.get(userID)?.get(assetID);
     }
 
-    addUserBalance(
-        userID: string,
-        assetID: string,
-        defaultBalance = 1000,
-    ): void {
+    addUserBalance(userID: string, assetID: string, balance = 1000): void {
         if (!this.balances.has(userID)) {
             this.balances.set(userID, new Map());
         }
-        if (!this.balances.get(userID)!.has(assetID)) {
-            this.balances.get(userID)!.set(assetID, {
-                free: defaultBalance,
-                locked: 0,
-            });
+        const userBalances = this.balances.get(userID)!;
+
+        if (userBalances.has(assetID)) {
+            userBalances.get(assetID)!.free += balance;
+        } else {
+            userBalances.set(assetID, { free: balance, locked: 0 });
         }
     }
 }

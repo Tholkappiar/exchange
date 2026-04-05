@@ -6,5 +6,5 @@ export const getBalanceSchema = z.object({
 
 export const setBalanceSchema = z.object({
     asset: z.string().min(3),
-    amount: z.number().positive().gte(1000).lte(1000000),
+    amount: z.number().positive().gte(1).lte(1000000),
 });

@@ -10,7 +10,6 @@ export const UserBalanceRouter = Router();
 
 UserBalanceRouter.get("/", async (req, res) => {
     const userID = req.userData.userId;
-    console.log("req.query : ", req.query);
     const parseResult = getBalanceSchema.safeParse(req.query);
     if (!parseResult.success) {
         return res.json(parseResult);
@@ -26,7 +25,7 @@ UserBalanceRouter.get("/", async (req, res) => {
         });
     }
 
-    res.json(response);
+    res.json({ success: true, ...response });
 });
 
 UserBalanceRouter.post("/", async (req, res) => {

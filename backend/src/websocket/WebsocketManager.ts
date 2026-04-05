@@ -24,13 +24,10 @@ export class WebsocketManager {
             ws.on("error", console.error);
 
             ws.on("message", async (data: Buffer) => {
-                console.log("data : ", data);
-
                 let parsed: UserRequestType;
 
                 try {
                     parsed = JSON.parse(data.toString());
-                    console.log("parsed : ", parsed);
                 } catch (err) {
                     console.error("Invalid JSON:", err);
                     return;
@@ -41,7 +38,6 @@ export class WebsocketManager {
                     !parsed.method ||
                     !parsed.params?.length
                 ) {
-                    console.log("Invalid payload structure");
                     return;
                 }
 
